@@ -1,0 +1,3 @@
+map[consul:[] counting:[] counting-sidecar-proxy:[] front1 service:[react front] web:[golang server2] web-sidecar-proxy:[golang] web2:[golang server3 has sidecar] web2-sidecar-proxy:[golang server3 has sidecar]]
+
+[golang server3 has sidecar]]
