@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"github.com/hashicorp/consul/api"
 	"math/rand"
@@ -20,7 +21,7 @@ func consulTest() {
 		Namespace:         "",
 		Datacenter:        "",
 		AllowStale:        false,
-		RequireConsistent: false,
+		RequireConsistent: true,
 		UseCache:          false,
 		MaxAge:            0,
 		StaleIfError:      0,
@@ -32,7 +33,7 @@ func consulTest() {
 		NodeMeta:          nil,
 		RelayFactor:       0,
 		LocalOnly:         false,
-		Connect:           false,
+		Connect:           true,
 		Filter:            "",
 	}
 	//services, _, _ := client.Services(&qo)
@@ -46,9 +47,9 @@ func consulTest() {
 	//}
 	//fmt.Println(keys)
 
-	dcs := []string{ "dc1","local-dc"}
+	dcs := []string{"dc1", "local-dc"}
 	tags := []string{"golang"}
-	serviceName :="web"
+	serviceName := "web"
 	namespace := ""
 	//_, _, _ = client.Nodes(dcs,"web","",tags,&qo)
 	//for k, _ := range services {
@@ -86,22 +87,43 @@ func consulTest() {
 	//}()
 	//time.Sleep(6 * time.Second)
 
+	h := cl.Health()
+	hc, _, _ := h.Service(serviceName, tags[0], true, &qo)
+	for _, i2 := range hc {
+		fmt.Println(i2.Service.Port)
+	}
 
 	consulWatcher, _ := serviceDiscovery.NewConsulWatcher(client)
-	query:=serviceDiscovery.Query{
-		Datacenters:  dcs,
-		ServiceName:  serviceName,
-		Namespace:    namespace,
-		Tags:         tags,
+	query := serviceDiscovery.Query{
+		QString: serviceDiscovery.QueryString{
+			Datacenters: dcs,
+			ServiceName: serviceName,
+			Namespace:   namespace,
+			Tags:        tags,
+		},
 		QueryOptions: &qo,
 	}
-	nodeInfoChan, errChan := consulWatcher.Watch(&query)
-	for  {
+	doneChan := make(chan int)
+	nodeInfoChan, errChan := consulWatcher.Watch(&query, doneChan)
+	go func() {
 		select {
-		case n:=<-nodeInfoChan:
-			fmt.Println("nodeInfo chan:",n)
-		case e:=<-errChan:
-			fmt.Println("errrchan:" ,e)
+		case <-time.After(12 * time.Second):
+			doneChan <- 1
+		}
+
+	}()
+	for {
+		select {
+		case n, ok := <-nodeInfoChan:
+			if !ok {
+				return
+			}
+			fmt.Println("nodeInfo chan:", n)
+		case e, ok := <-errChan:
+			if !ok {
+				return
+			}
+			fmt.Println("errrchan:", e)
 		}
 
 	}
@@ -345,6 +367,66 @@ func pingPong() {
 	//time.Sleep(1 * time.Second)
 	<-table //game over
 }
+func parseList(str string) []string {
+	s := strings.Split(str, ",")
+	for i, _ := range s {
+		s[i] = strings.ReplaceAll(s[i], "[", "")
+		s[i] = strings.ReplaceAll(s[i], "]", "")
+		if s[i] == "*" {
+			s[i] = ""
+		}
+	}
+	return s
+}
+func parseSyntax(value string) (*serviceDiscovery.QueryString, error) {
+	//[dc1,dc2].namespace.serviceA.[tag1,tag2]
+	split := strings.Split(value, ":")
+	if len(split) != 2 {
+		return nil, errors.New("bad query syntax")
+	}
+	str := strings.Split(split[1], ".")
+	qCategory := len(str)
+	if qCategory == 3 { //datacenters, service name, tags
+		queryString := serviceDiscovery.QueryString{
+			Datacenters: parseList(str[0]),
+			ServiceName: str[1],
+			Namespace:   "",
+			Tags:        parseList(str[2]),
+		}
+		return &queryString, nil
+	} else if qCategory == 4 { //datacenters, namespace, service name, tags
+		queryString := serviceDiscovery.QueryString{
+			Datacenters: parseList(str[0]),
+			ServiceName: str[2],
+			Namespace:   str[1],
+			Tags:        parseList(str[2]),
+		}
+		return &queryString, nil
+	}
+	return nil, errors.New("bad query syntax")
+
+}
+
+func testParseSyntax() {
+	l := []string{"consul:[dc1,dc2].namespace.serviceA.[tag1,tag2]",
+		"[dc1,dc2].namespace.serviceA.[tag1,tag2]",
+		"consul:[dc1,dc2.fdr].namespace.serviceA.[tag1,tag2]",
+		"",
+	}
+	for _, i := range l {
+		a, e := parseSyntax(i)
+		fmt.Println(a, e)
+	}
+}
+func testParseList() {
+	s := []string{"[dc1,dc2,aws-us-central-1]", "[]", "", "[*]"}
+	for _, i := range s {
+		fmt.Println(parseList(i))
+	}
+}
+
 func main() {
-	consulTest()
+	//consulTest()
+	//testParseList()
+	testParseSyntax()
 }
