@@ -16,13 +16,13 @@ type consulWatcher struct {
 }
 
 type Watcher interface {
-	Watch(query *Query) (<-chan *NodeInfo, <-chan error)
+	Watch(query *Query, doneChan <-chan int) (<-chan *NodeInfo, <-chan error)
 }
 
-func (c consulWatcher) Watch(query *Query) (<-chan *NodeInfo, <-chan error) {
+//poll for a given query
+func (c consulWatcher) Watch(query *Query, doneChan <-chan int) (<-chan *NodeInfo, <-chan error) {
 	nodeInfoChan := make(chan *NodeInfo)
 	errorChan := make(chan error)
-	//doneChan := make(chan int)
 
 	//start go routines
 	//start them every 5 secs
@@ -49,6 +49,9 @@ func (c consulWatcher) Watch(query *Query) (<-chan *NodeInfo, <-chan error) {
 				cancel()
 				//todo add where the timout happened
 				errorChan <- errors.New("timeout")
+			case <-doneChan:
+				cancel()
+				return
 			}
 		}
 	}()

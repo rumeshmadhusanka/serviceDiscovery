@@ -8,8 +8,6 @@ import (
 
 //todo import loggers
 
-
-
 // Data for a service instance
 type NodeInfo struct {
 	ServiceName string
@@ -17,14 +15,18 @@ type NodeInfo struct {
 	Address     string
 	ServicePort int
 	ServiceTags []string
-	ModifyIndex uint64   //whether the result has altered from the previous query
+	ModifyIndex uint64 //whether the result has altered from the previous query
+}
+
+type QueryString struct {
+	Datacenters []string
+	ServiceName string
+	Namespace   string
+	Tags        []string
 }
 
 type Query struct {
-	Datacenters  []string
-	ServiceName  string
-	Namespace    string
-	Tags         []string
+	QString      QueryString
 	QueryOptions *api.QueryOptions
 }
 
@@ -40,7 +42,7 @@ type ConsulClient interface {
 	Nodes(ctx context.Context, query *Query, resultChan chan *NodeInfo, errorChan chan error)
 	// single service
 	Service(service, tag string, q *api.QueryOptions) ([]*api.CatalogService, *api.QueryMeta, error)
-	// mesh scenario,
+	// todo consider mesh scenario,
 	Connect(service, tag string, q *api.QueryOptions) ([]*api.CatalogService, *api.QueryMeta, error)
 }
 
@@ -50,19 +52,20 @@ func NewConsulClient(a *api.Client) (*consulClient, error) {
 }
 
 // wraps the methods in the official api
-func (c *consulClient) Nodes(ctx context.Context, query *Query, resultChan chan *NodeInfo, errorChan chan error)  {
+func (c *consulClient) Nodes(ctx context.Context, query *Query, resultChan chan *NodeInfo, errorChan chan error) {
 	//todo optimize: reduce the no of calls
+	//todo health checks passing
 	//resultChan := make(chan NodeInfo)
 	//errorChan := make(chan error)
-	for _, dc := range query.Datacenters {
+	for _, dc := range query.QString.Datacenters {
 		qo := query.QueryOptions.WithContext(ctx) // returns a new obj with ctx
 		qo.Datacenter = dc
-		qo.Namespace = query.Namespace
-		for _, tag := range query.Tags {
+		qo.Namespace = query.QString.Namespace
+		for _, tag := range query.QString.Tags {
 			go func(datacenter string, serviceName string, tag string, qo *api.QueryOptions) {
 				fmt.Println("Go routine started", serviceName, tag, datacenter)
 				defer fmt.Println("Go routine exited", serviceName, tag, datacenter)
-				res, _, err := c.api.Catalog().Service(query.ServiceName, tag, qo)
+				res, _, err := c.api.Catalog().Service(query.QString.ServiceName, tag, qo)
 				if err != nil {
 					errorChan <- err
 				}
@@ -75,9 +78,20 @@ func (c *consulClient) Nodes(ctx context.Context, query *Query, resultChan chan 
 						ServiceTags: r.ServiceTags,
 						ModifyIndex: r.ModifyIndex,
 					}
-					resultChan <- &nodeInfo
+					//check whether health checks are passing
+					fmt.Println("checks: ", r.Checks)
+					if len(r.Checks) == 0 {
+						fmt.Println("check empty")
+						resultChan <- &nodeInfo
+					} else {
+						for _, chk := range r.Checks {
+							if chk.Status == "passing" {
+								resultChan <- &nodeInfo
+							}
+						}
+					}
 				}
-			}(dc, query.ServiceName, tag, qo)
+			}(dc, query.QString.ServiceName, tag, qo)
 		}
 	}
 }
