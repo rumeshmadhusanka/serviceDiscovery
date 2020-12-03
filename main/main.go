@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"github.com/hashicorp/consul/api"
 	"math/rand"
@@ -322,7 +321,6 @@ func chanExitAfter() {
 	}
 
 }
-
 func doneChan() {
 	produce := func(ch, done chan int, data []int) {
 		defer func() { done <- 1 }()
@@ -346,7 +344,6 @@ func doneChan() {
 		}
 	}
 }
-
 func pingPong() {
 	type Ball struct {
 		hits int
@@ -367,66 +364,15 @@ func pingPong() {
 	//time.Sleep(1 * time.Second)
 	<-table //game over
 }
-func parseList(str string) []string {
-	s := strings.Split(str, ",")
-	for i, _ := range s {
-		s[i] = strings.ReplaceAll(s[i], "[", "")
-		s[i] = strings.ReplaceAll(s[i], "]", "")
-		if s[i] == "*" {
-			s[i] = ""
-		}
-	}
-	return s
-}
-func parseSyntax(value string) (*serviceDiscovery.QueryString, error) {
-	//[dc1,dc2].namespace.serviceA.[tag1,tag2]
-	split := strings.Split(value, ":")
-	if len(split) != 2 {
-		return nil, errors.New("bad query syntax")
-	}
-	str := strings.Split(split[1], ".")
-	qCategory := len(str)
-	if qCategory == 3 { //datacenters, service name, tags
-		queryString := serviceDiscovery.QueryString{
-			Datacenters: parseList(str[0]),
-			ServiceName: str[1],
-			Namespace:   "",
-			Tags:        parseList(str[2]),
-		}
-		return &queryString, nil
-	} else if qCategory == 4 { //datacenters, namespace, service name, tags
-		queryString := serviceDiscovery.QueryString{
-			Datacenters: parseList(str[0]),
-			ServiceName: str[2],
-			Namespace:   str[1],
-			Tags:        parseList(str[2]),
-		}
-		return &queryString, nil
-	}
-	return nil, errors.New("bad query syntax")
 
-}
-
-func testParseSyntax() {
-	l := []string{"consul:[dc1,dc2].namespace.serviceA.[tag1,tag2]",
-		"[dc1,dc2].namespace.serviceA.[tag1,tag2]",
-		"consul:[dc1,dc2.fdr].namespace.serviceA.[tag1,tag2]",
-		"",
-	}
-	for _, i := range l {
-		a, e := parseSyntax(i)
-		fmt.Println(a, e)
-	}
-}
-func testParseList() {
-	s := []string{"[dc1,dc2,aws-us-central-1]", "[]", "", "[*]"}
-	for _, i := range s {
-		fmt.Println(parseList(i))
-	}
-}
+//func testParseList() {
+//	s := []string{"[dc1,dc2,aws-us-central-1]", "[]", "", "[*]"}
+//	for _, i := range s {
+//		fmt.Println(parseList(i))
+//	}
+//}
 
 func main() {
 	//consulTest()
-	//testParseList()
-	testParseSyntax()
+	//testParList()
 }
