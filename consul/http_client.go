@@ -7,6 +7,7 @@ import (
 )
 
 //todo import loggers
+//todo add init()
 
 // Data for a service instance
 type NodeInfo struct {
