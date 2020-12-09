@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/hashicorp/consul/api"
 	"math/rand"
+	"net"
+	"net/url"
 	"os"
 	serviceDiscovery "serviceDiscovery/consul"
 	"strconv"
@@ -15,7 +17,8 @@ import (
 
 func consulTest() {
 	cl, _ := api.NewClient(api.DefaultConfig())
-	client, _ := serviceDiscovery.NewConsulClient(cl)
+	he := cl.Health()
+	client, _ := serviceDiscovery.NewConsulClient(he)
 	qo := api.QueryOptions{
 		Namespace:         "",
 		Datacenter:        "",
@@ -86,8 +89,7 @@ func consulTest() {
 	//}()
 	//time.Sleep(6 * time.Second)
 
-	h := cl.Health()
-	hc, _, _ := h.Service(serviceName, tags[0], true, &qo)
+	hc, _, _ := he.Service(serviceName, tags[0], true, &qo)
 	for _, i2 := range hc {
 		fmt.Println(i2.Service.Port)
 	}
@@ -106,7 +108,7 @@ func consulTest() {
 	nodeInfoChan, errChan := consulWatcher.Watch(&query, doneChan)
 	go func() {
 		select {
-		case <-time.After(12 * time.Second):
+		case <-time.After(120 * time.Second):
 			doneChan <- 1
 		}
 
@@ -364,15 +366,82 @@ func pingPong() {
 	//time.Sleep(1 * time.Second)
 	<-table //game over
 }
+func urlTest() (bool, error) {
+	urls := []string{
+		"",
+		"http://www.dumpsters.com",
+		"https://www.dumpsters.com:443",
+		"testing-path.com",
+		"abc.com:80",
+		"http://abc.com:80",
+		"192.168.0.1:80",
+		"http://192.168.0.1:80",
+		"http://2402:4000:2081:3573:e04f:da63:e607:d34d",
+		"127.0.0.1",
+		"127.0.0.1:8080",
+		"192.168.0.1",
+		"http://127.0.0.1:8080",
+		"2402:4000:2081:3573:e04f:da63:e607:d34d",
+		"::1",
+		"2001:4860:0:2001::68",
+		"[1fff:0:a88:85a3::ac1f]:8001",
+		"https://[1fff:0:a88:85a3::ac1f]:8001",
+	}
+	for _, u := range urls {
+		//var host string
+		//var port string
+		fmt.Println(u)
+		val, err1 := url.Parse(u)
+		h, p, err2 := net.SplitHostPort(u)
+		ip := net.ParseIP(u)
 
-//func testParseList() {
-//	s := []string{"[dc1,dc2,aws-us-central-1]", "[]", "", "[*]"}
-//	for _, i := range s {
-//		fmt.Println(parseList(i))
-//	}
-//}
+		fmt.Println("url parse===========")
+		fmt.Println(err1)
+		if err1 == nil {
+			fmt.Println("host:	", val.Hostname())
+			fmt.Println("port:	", val.Port())
+		}
+		fmt.Println("split host port==========")
+		fmt.Println(err2)
+		if err2 == nil {
+			fmt.Println("host:	", h)
+			fmt.Println("port:	", p)
+		}
+		fmt.Println("parse ip========")
+		fmt.Println("ip:	", ip)
+		fmt.Println("\n")
+		//if val == nil {
+		//	//fmt.Println("not host port	")
+		//	ip, portVal, err := net.SplitHostPort(u)
+		//	if err != nil {
+		//		fmt.Println("Error")
+		//	} else {
+		//		host = ip
+		//		port = portVal
+		//	}
+		//} else {
+		//	host = val.Hostname()
+		//	port = val.Port()
+		//}
+
+		//fmt.Println("hostname	", host)
+		//fmt.Println("port  ", port)
+		//fmt.Println()
+		//we want: hostname, port
+
+	}
+	return true, nil
+}
+
+// Endpoint represents the structure of an endpoint.
+type DefaultHost struct {
+	Host string
+	Port string
+}
 
 func main() {
 	//consulTest()
 	//testParList()
+	_, _ = urlTest()
+
 }

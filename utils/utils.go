@@ -2,6 +2,9 @@ package utils
 
 import (
 	"errors"
+	"net"
+	"net/url"
+	"regexp"
 	serviceDiscovery "serviceDiscovery/consul"
 	"strings"
 )
@@ -9,6 +12,12 @@ import (
 const (
 	consul string = "consul:"
 )
+
+// Endpoint represents the structure of an endpoint.
+type DefaultHost struct {
+	Host string
+	Port string
+}
 
 func isDiscoveryServiceEndpoint(str string, discoveryServiceName string) bool {
 	return strings.HasPrefix(str, discoveryServiceName)
@@ -27,8 +36,14 @@ func parseList(str string) []string {
 }
 
 func parseSyntax(value string) (*serviceDiscovery.QueryString, error) {
-	//[dc1,dc2].namespace.serviceA.[tag1,tag2]
-	split := strings.Split(value, ":")
+	//consul:[dc1,dc2].namespace.serviceA.[tag1,tag2];abc.com:80
+	queryAndDefaultHost := strings.Split(value, ";")
+	if len(queryAndDefaultHost) != 2 {
+		return nil, errors.New("default host not provided")
+	}
+	query := queryAndDefaultHost[0]
+	//defaultHostString := queryAndDefaultHost[1]
+	split := strings.Split(query, ":")
 	if len(split) != 2 {
 		return nil, errors.New("bad query syntax")
 	}
@@ -53,4 +68,39 @@ func parseSyntax(value string) (*serviceDiscovery.QueryString, error) {
 	}
 	return nil, errors.New("bad query syntax")
 
+}
+
+func cleanString(str string) string {
+	reg, _ := regexp.Compile("[^a-zA-Z0-9]+")
+	return reg.ReplaceAllString(str, "")
+}
+
+func getDefaultHost(str string) DefaultHost {
+	val, err1 := url.Parse(str)
+
+	defHost := DefaultHost{
+		Host: "",
+		Port: "",
+	}
+	if err1 != nil {
+		//try with SplitHostPort
+		h, p, err2 := net.SplitHostPort(str)
+		if err2 != nil {
+			//try with ParseIP
+			ip := net.ParseIP(str)
+			if ip != nil {
+				defHost.Host = ip.String()
+			}
+		} else {
+			defHost.Host = h
+			defHost.Port = p
+		}
+	} else {
+		if val != nil {
+			defHost.Host = val.Hostname()
+			defHost.Port = val.Port()
+		}
+	}
+
+	return defHost
 }

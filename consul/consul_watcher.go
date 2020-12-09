@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-var (
+const (
 	RequestTimeout = 5 * time.Second
 	RepeatInterval = 5 * time.Second
 )
@@ -39,14 +39,13 @@ func (c consulWatcher) Watch(query *Query, doneChan <-chan int) (<-chan *NodeInf
 		defer close(errorChan)
 
 		for {
-			//todo find, do we really need a timout?
 			timeout := time.After(RequestTimeout)
 			ctx, cancel := context.WithCancel(context.Background())
 			select {
 			case <-intervalChan:
 				go c.client.Nodes(ctx, query, nodeInfoChan, errorChan)
 			case <-timeout:
-				cancel()
+				cancel() //propagates to http request
 				//todo add where the timout happened
 				errorChan <- errors.New("timeout")
 			case <-doneChan:
